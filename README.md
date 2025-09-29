@@ -1,5 +1,7 @@
 # UserQueriesSharp
 
+![NuGet Version](https://img.shields.io/nuget/v/UserQueriesSharp)
+
 A powerful search system that allows users to select and order by any property of an IQueryable.
 
 User Queries are designed to work with the Entity Framework system. Just pass in the DbSet as the IQueryable and add the neccessary attributes to the entity class.
