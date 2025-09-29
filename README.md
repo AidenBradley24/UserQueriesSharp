@@ -1,6 +1,6 @@
 # UserQueriesSharp
 
-![NuGet Version](https://img.shields.io/nuget/v/UserQueriesSharp)
+[![NuGet Version](https://img.shields.io/nuget/v/UserQueriesSharp)](https://www.nuget.org/packages/UserQueriesSharp/)
 
 A powerful search system that allows users to select and order by any property of an IQueryable.
 
