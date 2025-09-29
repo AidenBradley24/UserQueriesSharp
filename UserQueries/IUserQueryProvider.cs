@@ -1,7 +1,7 @@
 ﻿namespace UserQueries;
 
 /// <summary>
-/// A safe way of allowing users to specify a string to query a database.
+/// A powerful search system that allows users to select and order by any property of an IQueryable.
 /// </summary>
 /// <remarks>
 /// Use <see cref="UserQueryableAttribute"/> to specify queryable public properties in the model class. <br/>

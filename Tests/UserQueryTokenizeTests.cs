@@ -1,4 +1,4 @@
-﻿using UserQueries;
+﻿using static UserQueries.Tokenizer;
 
 namespace Tests
 {
@@ -22,7 +22,7 @@ namespace Tests
 		[InlineData("12>=2 17=2, beans='text'", new[] { "12", ">=", "2", "17", "=", "2", ",", "beans", "=", "text" }, new[] { true, false, true, true, false, true, false, false, false, true })]
 		public void Tokenize_BasicCases(string input, string[] expectedValues, bool[] expectedLiterals)
 		{
-			var tokens = UserQueryExtensions.Tokenize(input).ToArray();
+			var tokens = Tokenize(input).ToArray();
 			Assert.Equal(expectedValues, tokens.Select(t => t.Value));
 			Assert.Equal(expectedLiterals, tokens.Select(t => t.IsLiteral));
 		}
@@ -31,7 +31,7 @@ namespace Tests
 		public void Tokenize_HandlesMultipleDelimiters()
 		{
 			var input = "a, b & c";
-			var tokens = UserQueryExtensions.Tokenize(input).ToArray();
+			var tokens = Tokenize(input).ToArray();
 			Assert.Equal(["a", ",", "b", "&", "c"], tokens.Select(t => t.Value));
 		}
 
@@ -39,7 +39,7 @@ namespace Tests
 		public void Tokenize_HandlesNumbersAsLiterals()
 		{
 			var input = "42 test";
-			var tokens = UserQueryExtensions.Tokenize(input).ToArray();
+			var tokens = Tokenize(input).ToArray();
 			Assert.Equal(["42", "test"], tokens.Select(t => t.Value));
 			Assert.Equal([true, false], tokens.Select(t => t.IsLiteral));
 		}
@@ -53,7 +53,7 @@ namespace Tests
 		[InlineData("beans > 5.1'potatoes'", new[] { "beans", ">", "5.1", "potatoes" }, new[] { false, false, true, true })]
 		public void Tokenize_HandlesDecimalNumbers(string input, string[] expectedValues, bool[] expectedLiterals)
 		{
-			var tokens = UserQueryExtensions.Tokenize(input).ToArray();
+			var tokens = Tokenize(input).ToArray();
 			Assert.Equal(expectedValues, tokens.Select(t => t.Value));
 			Assert.Equal(expectedLiterals, tokens.Select(t => t.IsLiteral));
 		}
@@ -71,7 +71,7 @@ namespace Tests
 		[InlineData("a-1", new[] { "a", "-", "1" }, new[] { false, false, true })]
 		public void Tokenize_HandlesNegativeNumbers(string input, string[] expectedValues, bool[] expectedLiterals)
 		{
-			var tokens = UserQueryExtensions.Tokenize(input).ToArray();
+			var tokens = Tokenize(input).ToArray();
 			Assert.Equal(expectedValues, tokens.Select(t => t.Value));
 			Assert.Equal(expectedLiterals, tokens.Select(t => t.IsLiteral));
 		}

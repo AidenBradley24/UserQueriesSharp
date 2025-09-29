@@ -1,7 +1,7 @@
 ﻿using System.Collections.Frozen;
 using System.Linq.Expressions;
 using System.Reflection;
-using static UserQueries.UserQueryExtensions;
+using static UserQueries.Tokenizer;
 
 namespace UserQueries;
 
