@@ -12,10 +12,18 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/AidenBradley24/UserQueriesSharp</RepositoryUrl>
     <PackageProjectUrl>https://github.com/AidenBradley24/UserQueriesSharp</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UserQueryies.Analyzers\UserQueryies.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
   </ItemGroup>
 </Project>
 

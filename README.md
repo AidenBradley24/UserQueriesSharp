@@ -6,7 +6,7 @@ A powerful search system that allows users to select and order by any property o
 
 User Queries are designed to work with the Entity Framework system. Just pass in the DbSet as the IQueryable and add the neccessary attributes to the entity class.
 
-[See this](UserQueries/UserQueries.md) for a thorough explaination of UserQueries.
+[See this](https://github.com/AidenBradley24/UserQueriesSharp/blob/master/UserQueries/UserQueries.md) for a thorough explaination of UserQueries.
 
 ## Quick Start
 
