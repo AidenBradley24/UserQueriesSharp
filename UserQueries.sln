@@ -12,7 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.github\workflows\nuget.yml = .github\workflows\nuget.yml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserQueryies.Analyzers", "UserQueryies.Analyzers\UserQueryies.Analyzers.csproj", "{AB77640A-2A7F-46D0-A06E-DE1863597CCD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserQueries.Analyzers", "UserQueries.Analyzers\UserQueries.Analyzers.csproj", "{AB77640A-2A7F-46D0-A06E-DE1863597CCD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
