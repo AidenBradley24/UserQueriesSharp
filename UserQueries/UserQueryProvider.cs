@@ -22,10 +22,10 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 		"!$",    // does not end with (string only)
 		"*",     // contains (string only)
 		"!*",    // does not contain (string only)
-		"<",     // less than (int only)
-		"<=",    // less than or equal to (int only)
-		">",     // greater than (int only)
-		">="     // greater than or equal to (int only)
+		"<",     // less than
+		"<=",    // less than or equal to
+		">",     // greater than
+		">="     // greater than or equal to
 	];
 
 	/// <summary>
@@ -269,8 +269,8 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 	private Expression EvaluateComparison(Token target, Token compared, Token? op)
 	{
 		PropertyInfo targetProp = GetProperty(target);
-		bool supportsString = UserQueryOperatorCapabilities.SupportsStringMatch(targetProp.PropertyType);
-		bool supportsComparision = UserQueryOperatorCapabilities.SupportsComparison(targetProp.PropertyType);
+		bool supportsString = typeof(string).IsAssignableFrom(targetProp.PropertyType);
+		bool supportsComparision = typeof(IComparable).IsAssignableFrom(targetProp.PropertyType);
 		op ??= new Token(supportsString ? "*" : "=", false);
 
 		Expression left = Expression.Property(model, targetProp);
@@ -278,7 +278,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 
 		if (compared.IsLiteral)
 		{
-			object? parsed = UserQueryTypeParsers.Parse(targetProp.PropertyType, compared.Value);
+			object? parsed = UserQueryTypeParser.Parse(targetProp.PropertyType, compared.Value);
 			right = Expression.Constant(parsed, targetProp.PropertyType);
 		}
 		else

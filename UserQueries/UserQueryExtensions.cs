@@ -71,4 +71,16 @@ public static class UserQueryExtensions
 		}
 		return result;
 	}
+
+	public static bool IsValidQueryablePropertyName(string propertyName)
+	{
+		if (string.IsNullOrEmpty(propertyName)) return false;
+		if (!char.IsLetter(propertyName[0])) return false;
+		foreach (char c in propertyName.AsSpan()[1..]) 
+		{
+			if (!char.IsLetterOrDigit(c) && c != '_')
+				return false;
+		}
+		return true;
+	}
 }
