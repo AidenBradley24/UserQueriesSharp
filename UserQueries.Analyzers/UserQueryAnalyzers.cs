@@ -9,7 +9,7 @@ using System.Linq;
 namespace UserQueryies.Analyzers
 {
 	[DiagnosticAnalyzer(LanguageNames.CSharp)]
-	public class UserQueryiesAnalyzersAnalyzer : DiagnosticAnalyzer
+	public class UserQueryAnalyzers : DiagnosticAnalyzer
 	{
 		#region RULES
 
