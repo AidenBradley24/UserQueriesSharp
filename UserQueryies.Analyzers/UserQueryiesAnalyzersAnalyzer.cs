@@ -3,52 +3,169 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Threading;
 
 namespace UserQueryies.Analyzers
 {
 	[DiagnosticAnalyzer(LanguageNames.CSharp)]
 	public class UserQueryiesAnalyzersAnalyzer : DiagnosticAnalyzer
 	{
-		public const string DiagnosticId = "UserQueryiesAnalyzers";
+		#region RULES
 
-		// You can change these strings in the Resources.resx file. If you do not want your analyzer to be localize-able, you can use regular strings for Title and MessageFormat.
-		// See https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Localizing%20Analyzers.md for more on localization
-		private static readonly LocalizableString Title = new LocalizableResourceString(nameof(Resources.AnalyzerTitle), Resources.ResourceManager, typeof(Resources));
-		private static readonly LocalizableString MessageFormat = new LocalizableResourceString(nameof(Resources.AnalyzerMessageFormat), Resources.ResourceManager, typeof(Resources));
-		private static readonly LocalizableString Description = new LocalizableResourceString(nameof(Resources.AnalyzerDescription), Resources.ResourceManager, typeof(Resources));
-		private const string Category = "Naming";
+		private static readonly DiagnosticDescriptor UserQueryableNameRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY01",
+				title: "Invalid UserQueryable name",
+				messageFormat: "The name '{0}' is not valid for UserQueryableAttribute",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true,
+				description: "Names must begin with a letter and only contain numbers and underscores."
+				);
 
-		private static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(DiagnosticId, Title, MessageFormat, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, description: Description);
+		private static readonly DiagnosticDescriptor PrimaryUserQueryablePropertyExistRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY02",
+				title: "Property doesn't exist for PrimaryUserQueryable",
+				messageFormat: "The property '{0}' does not exist within {1}.",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true
+				);
 
-		public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(Rule); } }
+		private static readonly DiagnosticDescriptor PrimaryUserQueryablePropertyQueryableRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY03",
+				title: "Invalid PrimaryUserQueryable",
+				messageFormat: "The property '{0}' is not queryable. Add the UserQueryableAttribute to it.",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true
+				);
+		#endregion
+
+		public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+			ImmutableArray.Create(UserQueryableNameRule,
+									PrimaryUserQueryablePropertyExistRule,
+									PrimaryUserQueryablePropertyQueryableRule);
 
 		public override void Initialize(AnalysisContext context)
 		{
 			context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 			context.EnableConcurrentExecution();
-
-			// TODO: Consider registering other actions that act on syntax instead of or in addition to symbols
-			// See https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Analyzer%20Actions%20Semantics.md for more information
-			context.RegisterSymbolAction(AnalyzeSymbol, SymbolKind.NamedType);
+			context.RegisterSyntaxNodeAction(AnalyzeAttribute, SyntaxKind.Attribute);
+			context.RegisterSyntaxNodeAction(AnalyzeClass, SyntaxKind.ClassDeclaration);
 		}
 
-		private static void AnalyzeSymbol(SymbolAnalysisContext context)
+		private void AnalyzeAttribute(SyntaxNodeAnalysisContext context)
 		{
-			// TODO: Replace the following code with your own analysis, generating Diagnostic objects for any issues you find
-			var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
+			var attributeSyntax = (AttributeSyntax)context.Node;
+			if (!(context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is IMethodSymbol symbol)) return;
 
-			// Find just those named type symbols with names containing lowercase letters.
-			if (namedTypeSymbol.Name.ToCharArray().Any(char.IsLower))
+			var attributeType = symbol.ContainingType;
+
+			switch (attributeType.ToDisplayString())
 			{
-				// For all such symbols, produce a diagnostic.
-				var diagnostic = Diagnostic.Create(Rule, namedTypeSymbol.Locations[0], namedTypeSymbol.Name);
-
-				context.ReportDiagnostic(diagnostic);
+				case "UserQueries.UserQueryableAttribute":
+					if (attributeSyntax.ArgumentList?.Arguments.Count > 0)
+					{
+						var arg = attributeSyntax.ArgumentList.Arguments[0];
+						var constant = context.SemanticModel.GetConstantValue(arg.Expression);
+						if (constant.HasValue && constant.Value is string s)
+						{
+							if (!IsValidQueryablePropertyName(s))
+							{
+								var diagnostic = Diagnostic.Create(UserQueryableNameRule, arg.GetLocation(), s);
+								context.ReportDiagnostic(diagnostic);
+							}
+						}
+					}
+					break;
 			}
+		}
+
+		private static void AnalyzeClass(SyntaxNodeAnalysisContext context)
+		{
+			var classDecl = (ClassDeclarationSyntax)context.Node;
+			var semanticModel = context.SemanticModel;
+
+			foreach (var attributeList in classDecl.AttributeLists)
+			{
+				foreach (var attribute in attributeList.Attributes)
+				{
+					var typeInfo = semanticModel.GetTypeInfo(attribute);
+					var attributeType = typeInfo.Type;
+
+					// Replace with your attribute’s full name
+					if (attributeType == null || attributeType.ToDisplayString() != "UserQueries.PrimaryUserQueryableAttribute")
+						continue;
+
+					if (attribute.ArgumentList == null || attribute.ArgumentList.Arguments.Count == 0)
+						continue;
+
+					var argExpr = attribute.ArgumentList.Arguments[0].Expression;
+					string propertyName = null;
+
+					if (argExpr is LiteralExpressionSyntax literal &&
+						literal.IsKind(SyntaxKind.StringLiteralExpression))
+					{
+						propertyName = literal.Token.ValueText;
+					}
+					else if (argExpr is InvocationExpressionSyntax invocation &&
+							 invocation.Expression is IdentifierNameSyntax id &&
+							 id.Identifier.Text == "nameof" &&
+							 invocation.ArgumentList.Arguments.Count == 1)
+					{
+						var nameofArg = invocation.ArgumentList.Arguments[0].Expression;
+						propertyName = nameofArg.ToString();
+					}
+
+					if (propertyName == null)
+						continue;
+
+					var classSymbol = semanticModel.GetDeclaredSymbol(classDecl);
+					var propertySymbol = classSymbol
+						.GetMembers()
+						.OfType<IPropertySymbol>()
+						.FirstOrDefault(p => p.Name == propertyName);
+
+					if (propertySymbol == null)
+					{
+						var diag = Diagnostic.Create(PrimaryUserQueryablePropertyExistRule
+							, attribute.GetLocation(),
+							propertyName, classSymbol.Name);
+						context.ReportDiagnostic(diag);
+						continue;
+					}
+
+					// Property exists — check if it has a specific attribute
+					var hasRequiredAttribute = propertySymbol
+						.GetAttributes()
+						.Any(attr => attr.AttributeClass?.ToDisplayString() == "UserQueries.UserQueryableAttribute");
+
+					if (!hasRequiredAttribute)
+					{
+						var diag = Diagnostic.Create(
+							PrimaryUserQueryablePropertyQueryableRule,
+							attribute.GetLocation(),
+							propertyName);
+						context.ReportDiagnostic(diag);
+					}
+				}
+			}
+		}
+
+		public static bool IsValidQueryablePropertyName(string propertyName)
+		{
+			if (string.IsNullOrEmpty(propertyName)) return false;
+			if (!char.IsLetter(propertyName[0])) return false;
+			foreach (char c in propertyName.AsSpan().Slice(1))
+			{
+				if (!char.IsLetterOrDigit(c) && c != '_')
+					return false;
+			}
+			return true;
 		}
 	}
 }

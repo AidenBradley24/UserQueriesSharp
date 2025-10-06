@@ -1,6 +1,4 @@
-﻿using UserQueries;
-
-namespace Tests
+﻿namespace UserQueries.Tests
 {
 	public class WideEnumeratorTests
 	{

@@ -1,7 +1,6 @@
-﻿using UserQueries;
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 
-namespace Tests
+namespace UserQueries.Tests
 {
 	public class UserQueryTests
 	{

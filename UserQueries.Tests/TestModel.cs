@@ -1,6 +1,4 @@
-﻿using UserQueries;
-
-namespace Tests
+﻿namespace UserQueries.Tests
 {
 	[PrimaryUserQueryable(nameof(Name))]
 	internal class TestModel

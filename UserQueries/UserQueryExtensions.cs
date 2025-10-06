@@ -76,7 +76,7 @@ public static class UserQueryExtensions
 	{
 		if (string.IsNullOrEmpty(propertyName)) return false;
 		if (!char.IsLetter(propertyName[0])) return false;
-		foreach (char c in propertyName.AsSpan()[1..]) 
+		foreach (char c in propertyName.AsSpan()[1..])
 		{
 			if (!char.IsLetterOrDigit(c) && c != '_')
 				return false;

@@ -1,6 +1,6 @@
 ﻿using static UserQueries.Tokenizer;
 
-namespace Tests
+namespace UserQueries.Tests
 {
 	public class UserQueryTokenizeTests
 	{
