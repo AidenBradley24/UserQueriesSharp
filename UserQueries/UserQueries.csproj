@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>UserQueriesSharp</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Authors>Aiden Bradley</Authors>
     <Description>A library that allows users to use an advanced searchbar to query properties in a class.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -14,19 +14,22 @@
     <PackageProjectUrl>https://github.com/AidenBradley24/UserQueriesSharp</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UserQueries.Analyzers\UserQueries.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\UserQueries.Analyzers\bin\$(Configuration)\netstandard2.0\UserQueries.Analyzers.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs" />
+  </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\UserQueries.Analyzers\UserQueries.Analyzers.csproj" 
-                      OutputItemType="Analyzer" 
-                      PrivateAssets="all"/>
-    
     <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
   </ItemGroup>
 </Project>
 
