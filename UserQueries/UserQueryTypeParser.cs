@@ -21,6 +21,7 @@ internal static class UserQueryTypeParser
 
 	public static object Parse(Type type, string literal)
 	{
+		if (type == typeof(string)) return literal;
 		if (type.IsEnum)
 		{
 			try
@@ -40,9 +41,9 @@ internal static class UserQueryTypeParser
 		{
 			return parseMethod.Invoke(null, [literal, CultureInfo.InvariantCulture])!;
 		}
-		catch (FormatException ex)
+		catch (TargetInvocationException ex)
 		{
-			throw new InvalidUserQueryException($"Unable to parse literal \"{literal}\" as type {type.FullName}", ex);
+			throw new InvalidUserQueryException($"Unable to parse literal \"{literal}\" as type {type.FullName}", ex.InnerException);
 		}
 	}
 }

@@ -270,7 +270,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 	{
 		PropertyInfo targetProp = GetProperty(target);
 		bool supportsString = typeof(string).IsAssignableFrom(targetProp.PropertyType);
-		bool supportsComparision = typeof(IComparable).IsAssignableFrom(targetProp.PropertyType);
+		bool supportsComparision = typeof(IComparable).IsAssignableFrom(targetProp.PropertyType) && targetProp.PropertyType != typeof(string);
 		op ??= new Token(supportsString ? "*" : "=", false);
 
 		Expression left = Expression.Property(model, targetProp);
