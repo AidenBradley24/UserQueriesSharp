@@ -6,7 +6,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace UserQueryies.Analyzers
+namespace UserQueries.Analyzers
 {
 	[DiagnosticAnalyzer(LanguageNames.CSharp)]
 	public class UserQueryAnalyzers : DiagnosticAnalyzer

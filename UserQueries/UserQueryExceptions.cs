@@ -1,4 +1,5 @@
-﻿namespace UserQueries;
+﻿#pragma warning disable CS1591
+namespace UserQueries;
 
 /// <summary>
 /// Occurs when something is wrong with the entity / model object's configuration.

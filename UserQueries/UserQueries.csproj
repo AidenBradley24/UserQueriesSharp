@@ -6,13 +6,14 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>UserQueriesSharp</PackageId>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
     <Authors>Aiden Bradley</Authors>
     <Description>A library that allows users to use an advanced searchbar to query properties in a class.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/AidenBradley24/UserQueriesSharp</RepositoryUrl>
     <PackageProjectUrl>https://github.com/AidenBradley24/UserQueriesSharp</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\UserQueries.Analyzers\UserQueries.Analyzers.csproj"
@@ -30,6 +31,10 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).xml" Pack="true" PackagePath="lib/$(TargetFramework)" />
   </ItemGroup>
 </Project>
 

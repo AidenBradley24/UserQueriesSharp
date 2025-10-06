@@ -2,8 +2,16 @@
 
 namespace UserQueries;
 
+/// <summary>
+/// Collection of tokenize utilities
+/// </summary>
 public static class Tokenizer
 {
+	/// <summary>
+	/// Logical segment within a string.
+	/// </summary>
+	/// <param name="Value">String representation of this token</param>
+	/// <param name="IsLiteral">True if the value should be interpreted literally</param>
 	public record Token(string Value, bool IsLiteral);
 
 	/// <summary>
@@ -22,7 +30,6 @@ public static class Tokenizer
 	/// <param name="input"></param>
 	/// <returns>A lazy collection of tokens.</returns>
 	/// <exception cref="ArgumentException">When input is invalid</exception>
-
 	public static IEnumerable<Token> Tokenize(string? input)
 	{
 		if (string.IsNullOrEmpty(input)) yield break;
@@ -65,15 +72,15 @@ public static class Tokenizer
 						mode = TokenizerFlags.StartedHyphenMode;
 						continue;
 					default:
-						if (char.IsLetter(c))
+						if (CharIsStarterOfNameLike(c))
 						{
-							mode = TokenizerFlags.LetterMode;
+							mode = TokenizerFlags.NameMode;
 						}
 						else if (char.IsDigit(c))
 						{
 							mode = TokenizerFlags.NumberMode;
 						}
-						else if (char.IsSymbol(c) || char.IsPunctuation(c))
+						else if (CharIsSymbolLike(c))
 						{
 							mode = TokenizerFlags.SymbolMode;
 						}
@@ -166,7 +173,7 @@ public static class Tokenizer
 						throw new ArgumentException("Numbers cannot contain more than one decimal point.");
 					mode = TokenizerFlags.DecimalMode;
 				}
-				else if (char.IsSymbol(c) || char.IsPunctuation(c))
+				else if (!char.IsDigit(c))
 				{
 					chunk.Append(input.AsSpan()[start..i]);
 					start = i--;
@@ -176,7 +183,7 @@ public static class Tokenizer
 				continue;
 			}
 
-			if ((mode == TokenizerFlags.LetterMode || mode.HasFlag(TokenizerFlags.NumberMode)) && (char.IsSymbol(c) || char.IsPunctuation(c)))
+			if (mode == TokenizerFlags.NameMode && !CharIsMiddleOfNameLike(c))
 			{
 				chunk.Append(input.AsSpan()[start..i]);
 				start = i--;
@@ -185,7 +192,7 @@ public static class Tokenizer
 				continue;
 			}
 
-			if (mode == TokenizerFlags.SymbolMode && (!(char.IsSymbol(c) || char.IsPunctuation(c)) || c == '\'' || c == '\"'))
+			if (mode == TokenizerFlags.SymbolMode && !CharIsSymbolLike(c))
 			{
 				chunk.Append(input.AsSpan()[start..i]);
 				start = i--;
@@ -212,11 +219,26 @@ public static class Tokenizer
 		StartMode = NonLiteral | 8,
 		NumberMode = NonQuoted | Literal | 8,
 		DecimalMode = NumberMode | 16,
-		LetterMode = NonQuoted | NonLiteral | 8,
+		NameMode = NonQuoted | NonLiteral | 8,
 		SymbolMode = NonQuoted | NonLiteral | 8 | 16,
 		StartedHyphenMode = NonQuoted | NonLiteral | 16,
 		MidSymbolHyphenMode = SymbolMode | 32,
 		SingleQuoteMode = Quoted | Literal,
 		DoubleQuoteMode = Quoted | Literal | 8,
+	}
+
+	internal static bool CharIsStarterOfNameLike(char ch)
+	{
+		return ch == '_' || char.IsLetter(ch);
+	}
+
+	internal static bool CharIsMiddleOfNameLike(char ch)
+	{
+		return ch == '_' || char.IsLetterOrDigit(ch);
+	}
+
+	internal static bool CharIsSymbolLike(char ch)
+	{
+		return ch != '_' && ch != '\'' && ch != '\"' && (char.IsSymbol(ch) || char.IsPunctuation(ch));
 	}
 }
