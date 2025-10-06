@@ -6,12 +6,16 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>UserQueriesSharp</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Aiden Bradley</Authors>
-    <Description>A library that allows users to interface with an IQueryable.</Description>
+    <Description>A library that allows users to use an advanced searchbar to query properties in a class.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/AidenBradley24/UserQueriesSharp</RepositoryUrl>
     <PackageProjectUrl>https://github.com/AidenBradley24/UserQueriesSharp</PackageProjectUrl>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\UserQueryies.Analyzers\UserQueryies.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+  </ItemGroup>
 </Project>
+
