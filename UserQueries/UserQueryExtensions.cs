@@ -3,6 +3,9 @@ using System.Text;
 
 namespace UserQueries;
 
+/// <summary>
+/// A collection of User Query utility methods
+/// </summary>
 public static class UserQueryExtensions
 {
 	/// <inheritdoc cref="UserQueryProvider{TModel}.EvaluateUserQuery(string)"/>
@@ -72,6 +75,9 @@ public static class UserQueryExtensions
 		return result;
 	}
 
+	/// <summary>
+	/// Returns true if <paramref name="propertyName"/> is a valid user queryable name.
+	/// </summary>
 	public static bool IsValidQueryablePropertyName(string propertyName)
 	{
 		if (string.IsNullOrEmpty(propertyName)) return false;

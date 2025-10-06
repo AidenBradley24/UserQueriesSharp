@@ -75,5 +75,17 @@ namespace UserQueries.Tests
 			Assert.Equal(expectedValues, tokens.Select(t => t.Value));
 			Assert.Equal(expectedLiterals, tokens.Select(t => t.IsLiteral));
 		}
+		[Theory]
+		[InlineData("var_name=5", new[] { "var_name", "=", "5" }, new[] { false, false, true })]
+		[InlineData("var_name_2 = 10", new[] { "var_name_2", "=", "10" }, new[] { false, false, true })]
+		[InlineData("_privateVar=42", new[] { "_privateVar", "=", "42" }, new[] { false, false, true })]
+		[InlineData("a_b_c, x_y_z", new[] { "a_b_c", ",", "x_y_z" }, new[] { false, false, false })]
+		[InlineData("beans_var <=4.6", new[] { "beans_var", "<=", "4.6" }, new[] { false, false, true })]
+		public void Tokenize_HandlesUnderscoresInNames(string input, string[] expectedValues, bool[] expectedLiterals)
+		{
+			var tokens = Tokenize(input).ToArray();
+			Assert.Equal(expectedValues, tokens.Select(t => t.Value));
+			Assert.Equal(expectedLiterals, tokens.Select(t => t.IsLiteral));
+		}
 	}
 }

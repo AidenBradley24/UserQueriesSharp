@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿#pragma warning disable CS1591
+using System.Collections;
 
 namespace UserQueries;
 
@@ -51,7 +52,7 @@ public class WideEnumerator<T> : IWideEnumerator<T>
 
 	private readonly ForesightCollection foresight;
 	private readonly HistoryCollection history;
-
+	
 	public WideEnumerator(IEnumerator<T> baseEnumerator, int historyDepth, int foresightDepth)
 	{
 		this.baseEnumerator = baseEnumerator;

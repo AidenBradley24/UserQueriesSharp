@@ -62,6 +62,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 
 	private readonly ParameterExpression model = Expression.Parameter(typeof(TModel), "x");
 
+	/// <inheritdoc/>
 	public IQueryable<TModel> EvaluateUserQuery(string queryText)
 	{
 		IWideEnumerator<Token> tokens = Tokenize(queryText).GetWideEnumerator(1, 2);
