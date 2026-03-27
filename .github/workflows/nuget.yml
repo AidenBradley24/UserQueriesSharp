@@ -7,17 +7,23 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
+
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore UserQueries/UserQueries.csproj
+
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build UserQueries/UserQueries.csproj --configuration Release --no-restore -p:GeneratePackageOnBuild=false
+
       - name: Pack
-        run: dotnet pack --configuration Release --no-build -o out
+        run: dotnet pack UserQueries/UserQueries.csproj --configuration Release --no-build -o out
+
       - name: Push to NuGet
-        run: dotnet nuget push "out/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push "out/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
