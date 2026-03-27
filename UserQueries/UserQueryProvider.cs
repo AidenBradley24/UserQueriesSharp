@@ -12,22 +12,6 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 	private readonly FrozenDictionary<string, PropertyInfo> queryableProperties;
 	private readonly Token? defaultTarget;
 
-	private static readonly FrozenSet<string> operators =
-	[
-		"=",     // equals
-		"!=",    // not equals
-		"^",     // starts with (string only)
-		"!^",    // does not start with (string only)
-		"$",     // ends with (string only)
-		"!$",    // does not end with (string only)
-		"*",     // contains (string only)
-		"!*",    // does not contain (string only)
-		"<",     // less than
-		"<=",    // less than or equal to
-		">",     // greater than
-		">="     // greater than or equal to
-	];
-
 	/// <summary>
 	/// Initialize a new provider for <typeparamref name="TModel"/>
 	/// </summary>
@@ -155,7 +139,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 								);
 							tokens.MoveBy(2);
 						}
-						else if (reference != null && operators.Contains(tokens.Current.Value))
+						else if (reference != null && IsOperator(tokens.Current.Value))
 						{
 							Token op = tokens.Current;
 							if (!tokens.MoveNext()) throw new InvalidUserQueryException($"Incomplete: include property or literal to compare to: {queryText} ...");
@@ -333,6 +317,20 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 		var method = typeof(string).GetMethod(methodName, [typeof(string)])!;
 		return Expression.Call(leftToLower, method, rightToLower);
 	}
+
+	private static bool IsOperator(string value) => value is
+	"=" or
+	"!=" or
+	"^" or
+	"!^" or
+	"$" or
+	"!$" or
+	"*" or
+	"!*" or
+	"<" or
+	"<=" or
+	">" or
+	">=";
 
 	enum EvaluationMode
 	{
