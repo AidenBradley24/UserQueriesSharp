@@ -1,6 +1,4 @@
-﻿using Xunit.Abstractions;
-
-namespace UserQueries.Tests
+﻿namespace UserQueries.Tests
 {
 	public class UserQueryTests
 	{
@@ -13,8 +11,8 @@ namespace UserQueries.Tests
 
 		private static readonly IEnumerable<TestModel> extendedRoot = root.Concat(
 		[
-			new TestModel() { Name = "Item4", IntValue = 20, FloatValue = 7.5f, DoubleValue = 7.5, TimeSpanValue = TimeSpan.FromSeconds(240) },
-			new TestModel() { Name = "Item5", IntValue = -10, FloatValue = 7.5f, DoubleValue = -7.5, TimeSpanValue = TimeSpan.FromSeconds(240) },
+			new TestModel() { Name = "Item4", IntValue = 20, FloatValue = 7.5f, DoubleValue = 7.5, TimeSpanValue = TimeSpan.FromSeconds(240), Embedded = new EmbededModel() { EmbeddedValue = "Embedded1" } },
+			new TestModel() { Name = "Item5", IntValue = -10, FloatValue = 7.5f, DoubleValue = -7.5, TimeSpanValue = TimeSpan.FromSeconds(240), Embedded = new EmbededModel() { EmbeddedValue = "Embedded2" } },
 		]);
 
 		private readonly ITestOutputHelper output;
@@ -206,6 +204,19 @@ namespace UserQueries.Tests
 		[InlineData("intvalue = -10", new[] { "Item5" })]
 		[InlineData("intvalue =-10", new[] { "Item5" })]
 		public void NegativeNumber_Queries(string query, string[] expectedNames)
+		{
+			var provider = GetExtendedProvider();
+			var result = provider.EvaluateUserQuery(query);
+			var actualNames = result.Select(i => i.Name).ToArray();
+			Assert.Equal(expectedNames.OrderBy(n => n), actualNames.OrderBy(n => n));
+		}
+
+		[Theory]
+		[InlineData("embedded: 'Embedded1'", new[] { "Item4" })]
+		[InlineData("embedded: 'Embedded2'", new[] { "Item5" })]
+		[InlineData("embedded: 'Embedded'", new[] { "Item4", "Item5" })]
+		[InlineData("embedded !* 'Embedded'", new[] { "Item1", "Item2", "Item3" })]
+		public void EmbeddedProperty_Queries(string query, string[] expectedNames)
 		{
 			var provider = GetExtendedProvider();
 			var result = provider.EvaluateUserQuery(query);

@@ -9,7 +9,7 @@ namespace UserQueries;
 public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 {
 	private readonly IQueryable<TModel> root;
-	private readonly FrozenDictionary<string, PropertyInfo> queryableProperties;
+	private readonly FrozenDictionary<string, UserQueryProperty> queryableProperties;
 	private readonly Token? defaultTarget;
 
 	private static readonly FrozenSet<string> operators =
@@ -37,30 +37,27 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 	public UserQueryProvider(IQueryable<TModel> root)
 	{
 		this.root = root;
-		queryableProperties = typeof(TModel).GetProperties()
-			.Where(p => p.GetCustomAttributes<UserQueryableAttribute>(true).Any())
-			.Select(p =>
-			{
-				if (!p.CanRead) throw new UserQueryableMisconfigurationException($"Type {typeof(TModel).FullName} {p.Name} is not readable.");
-				return new KeyValuePair<string, PropertyInfo>(p.GetCustomAttributes<UserQueryableAttribute>(true).First().QueryName, p);
-			}).ToFrozenDictionary();
-		if (queryableProperties.ContainsKey("orderby") || queryableProperties.ContainsKey("orderbydescending"))
-			throw new UserQueryableMisconfigurationException("'orderby' and 'orderbydescending' are reserved words. They cannot be used as property names.");
-		string? defaultPropName = typeof(TModel).GetCustomAttribute<PrimaryUserQueryableAttribute>()?.PropertyName;
-		var defaultProperty = defaultPropName != null ? typeof(TModel).GetProperty(defaultPropName) : null;
-		if (defaultProperty == null && defaultPropName != null)
-			throw new UserQueryableMisconfigurationException($"Type {typeof(TModel).FullName} {defaultPropName} not found.");
-		if (defaultProperty != null && !defaultProperty.CanRead)
-			throw new UserQueryableMisconfigurationException($"Type {typeof(TModel).FullName} {defaultProperty.Name} is not readable.");
-		if (defaultProperty != null)
+
+		try 
 		{
-			var att = defaultProperty.GetCustomAttribute<UserQueryableAttribute>()
-				?? throw new UserQueryableMisconfigurationException($"Type {typeof(TModel).FullName} {defaultProperty.Name} is not user queryable.");
-			defaultTarget = new Token(att.QueryName, false);
+			queryableProperties = root
+				.GetQueryableProperties(out var modelExpression)
+				.ToFrozenDictionary(prop => prop.QueryName, prop => prop);
+
+			ModelExpression = modelExpression;
+
+			if (queryableProperties.TryGetValue("default", out var defaultProp)) 
+			{
+				defaultTarget = new Token(defaultProp.QueryName, false);
+			}
+		}
+		catch (UserQueryableMisconfigurationException ex) 
+		{
+			throw new UserQueryableMisconfigurationException("Unable to initialize UserQueryProvider: " + ex.Message);
 		}
 	}
 
-	private readonly ParameterExpression model = Expression.Parameter(typeof(TModel), "x");
+	private ParameterExpression ModelExpression { get; }
 
 	/// <inheritdoc/>
 	public IQueryable<TModel> EvaluateUserQuery(string queryText)
@@ -118,7 +115,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 								}
 
 								var term = EvaluateComparison(defaultTarget, new Token(bigToken.ToString(), true), null);
-								var lambda = Expression.Lambda<Func<TModel, bool>>(term, model);
+								var lambda = Expression.Lambda<Func<TModel, bool>>(term, ModelExpression);
 								var exp = root.Where(lambda);
 
 								if (extraTokens != null)
@@ -234,7 +231,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 				{
 					currentTerm = Expression.OrElse(currentTerm, ex);
 				}
-				var lambda = Expression.Lambda<Func<TModel, bool>>(currentTerm, model);
+				var lambda = Expression.Lambda<Func<TModel, bool>>(currentTerm, ModelExpression);
 				returnValue = root.Where(lambda);
 			}
 			else
@@ -258,7 +255,7 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 		}
 	}
 
-	private PropertyInfo GetProperty(Token token)
+	private UserQueryProperty GetProperty(Token token)
 	{
 		if (token.Value == "orderby" || token.Value == "orderbydescending") throw new InvalidUserQueryException("Incomplete: include property to sort by");
 		bool exists = queryableProperties.TryGetValue(token.Value.ToLowerInvariant(), out var property);
@@ -269,23 +266,23 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 
 	private Expression EvaluateComparison(Token target, Token compared, Token? op)
 	{
-		PropertyInfo targetProp = GetProperty(target);
-		bool supportsString = typeof(string).IsAssignableFrom(targetProp.PropertyType);
-		bool supportsComparision = typeof(IComparable).IsAssignableFrom(targetProp.PropertyType) && targetProp.PropertyType != typeof(string);
+		UserQueryProperty targetProp = GetProperty(target);
+		bool supportsString = typeof(string).IsAssignableFrom(targetProp.Property.PropertyType);
+		bool supportsComparision = typeof(IComparable).IsAssignableFrom(targetProp.Property.PropertyType) && targetProp.Property.PropertyType != typeof(string);
 		op ??= new Token(supportsString ? "*" : "=", false);
 
-		Expression left = Expression.Property(model, targetProp);
+		Expression left = targetProp.Expression;
 		Expression right;
 
 		if (compared.IsLiteral)
 		{
-			object? parsed = UserQueryTypeParser.Parse(targetProp.PropertyType, compared.Value);
-			right = Expression.Constant(parsed, targetProp.PropertyType);
+			object? parsed = UserQueryTypeParser.Parse(targetProp.Property.PropertyType, compared.Value);
+			right = Expression.Constant(parsed, targetProp.Property.PropertyType);
 		}
 		else
 		{
-			PropertyInfo comparedProp = GetProperty(compared);
-			right = Expression.Property(model, comparedProp);
+			UserQueryProperty comparedProp = GetProperty(compared);
+			right = comparedProp.Expression;
 		}
 
 		Expression body = op.Value switch
@@ -313,13 +310,13 @@ public sealed class UserQueryProvider<TModel> : IUserQueryProvider<TModel>
 
 	private Expression<Func<TModel, object>> CreateOrderByExpression(Token sortProperty)
 	{
-		var property = Expression.Property(model, GetProperty(sortProperty));
+		var property = GetProperty(sortProperty).Expression;
 
 		Expression conversion = property.Type.IsValueType
 			? Expression.Convert(property, typeof(object))
 			: property;
 
-		return Expression.Lambda<Func<TModel, object>>(conversion, model);
+		return Expression.Lambda<Func<TModel, object>>(conversion, ModelExpression);
 	}
 
 	private static MethodCallExpression CallInsensitive(Expression left, Expression right, string methodName)

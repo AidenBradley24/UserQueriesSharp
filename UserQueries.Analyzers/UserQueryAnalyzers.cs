@@ -43,12 +43,46 @@ namespace UserQueries.Analyzers
 				defaultSeverity: DiagnosticSeverity.Error,
 				isEnabledByDefault: true
 				);
+
+		private static readonly DiagnosticDescriptor EmbeddedUserQueryableNameRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY04",
+				title: "Invalid EmbeddedUserQueryable name",
+				messageFormat: "The name '{0}' is not valid for EmbeddedUserQueryableAttribute",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true
+				);
+
+
+		private static readonly DiagnosticDescriptor EmbeddedPropertyExistRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY05",
+				title: "Property doesn't exist for EmbeddedPropertyName",
+				messageFormat: "The property '{0}' does not exist within {1}.",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true
+				);
+
+		private static readonly DiagnosticDescriptor EmbeddedPropertyQueryableRule =
+			new DiagnosticDescriptor(
+				id: "UQUERY06",
+				title: "Invalid EmbeddedUserQueryable",
+				messageFormat: "The property '{0}' is not queryable. Add the UserQueryableAttribute to it.",
+				category: "Usage",
+				defaultSeverity: DiagnosticSeverity.Error,
+				isEnabledByDefault: true
+				);
 		#endregion
 
 		public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-			ImmutableArray.Create(UserQueryableNameRule,
-									PrimaryUserQueryablePropertyExistRule,
-									PrimaryUserQueryablePropertyQueryableRule);
+			ImmutableArray.Create(
+				UserQueryableNameRule,
+				PrimaryUserQueryablePropertyExistRule,
+				PrimaryUserQueryablePropertyQueryableRule,
+				EmbeddedUserQueryableNameRule,
+				EmbeddedPropertyExistRule);
 
 		public override void Initialize(AnalysisContext context)
 		{
@@ -56,6 +90,7 @@ namespace UserQueries.Analyzers
 			context.EnableConcurrentExecution();
 			context.RegisterSyntaxNodeAction(AnalyzeAttribute, SyntaxKind.Attribute);
 			context.RegisterSyntaxNodeAction(AnalyzeClass, SyntaxKind.ClassDeclaration);
+			context.RegisterSyntaxNodeAction(AnalyzeProperty, SyntaxKind.PropertyDeclaration);
 		}
 
 		private void AnalyzeAttribute(SyntaxNodeAnalysisContext context)
@@ -68,17 +103,23 @@ namespace UserQueries.Analyzers
 			switch (attributeType.ToDisplayString())
 			{
 				case "UserQueries.UserQueryableAttribute":
-					if (attributeSyntax.ArgumentList?.Arguments.Count > 0)
 					{
-						var arg = attributeSyntax.ArgumentList.Arguments[0];
-						var constant = context.SemanticModel.GetConstantValue(arg.Expression);
-						if (constant.HasValue && constant.Value is string s)
+						var queryName = GetAttributeStringArgument(attributeSyntax, context.SemanticModel, "queryName", 0);
+						if (queryName != null && !IsValidQueryablePropertyName(queryName))
 						{
-							if (!IsValidQueryablePropertyName(s))
-							{
-								var diagnostic = Diagnostic.Create(UserQueryableNameRule, arg.GetLocation(), s);
-								context.ReportDiagnostic(diagnostic);
-							}
+							var diagnostic = Diagnostic.Create(UserQueryableNameRule, attributeSyntax.GetLocation(), queryName);
+							context.ReportDiagnostic(diagnostic);
+						}
+					}
+					break;
+
+				case "UserQueries.EmbeddedUserQueryableAttribute":
+					{
+						var queryName = GetAttributeStringArgument(attributeSyntax, context.SemanticModel, "queryName", 0);
+						if (queryName != null && !IsValidQueryablePropertyName(queryName))
+						{
+							var diagnostic = Diagnostic.Create(EmbeddedUserQueryableNameRule, attributeSyntax.GetLocation(), queryName);
+							context.ReportDiagnostic(diagnostic);
 						}
 					}
 					break;
@@ -94,66 +135,139 @@ namespace UserQueries.Analyzers
 			{
 				foreach (var attribute in attributeList.Attributes)
 				{
-					var typeInfo = semanticModel.GetTypeInfo(attribute);
-					var attributeType = typeInfo.Type;
-
-					// Replace with your attribute’s full name
-					if (attributeType == null || attributeType.ToDisplayString() != "UserQueries.PrimaryUserQueryableAttribute")
-						continue;
-
-					if (attribute.ArgumentList == null || attribute.ArgumentList.Arguments.Count == 0)
-						continue;
-
-					var argExpr = attribute.ArgumentList.Arguments[0].Expression;
-					string propertyName = null;
-
-					if (argExpr is LiteralExpressionSyntax literal &&
-						literal.IsKind(SyntaxKind.StringLiteralExpression))
-					{
-						propertyName = literal.Token.ValueText;
-					}
-					else if (argExpr is InvocationExpressionSyntax invocation &&
-							 invocation.Expression is IdentifierNameSyntax id &&
-							 id.Identifier.Text == "nameof" &&
-							 invocation.ArgumentList.Arguments.Count == 1)
-					{
-						var nameofArg = invocation.ArgumentList.Arguments[0].Expression;
-						propertyName = nameofArg.ToString();
-					}
-
-					if (propertyName == null)
-						continue;
-
-					var classSymbol = semanticModel.GetDeclaredSymbol(classDecl);
-					var propertySymbol = classSymbol
-						.GetMembers()
-						.OfType<IPropertySymbol>()
-						.FirstOrDefault(p => p.Name == propertyName);
-
-					if (propertySymbol == null)
-					{
-						var diag = Diagnostic.Create(PrimaryUserQueryablePropertyExistRule
-							, attribute.GetLocation(),
-							propertyName, classSymbol.Name);
-						context.ReportDiagnostic(diag);
-						continue;
-					}
-
-					// Property exists — check if it has a specific attribute
-					var hasRequiredAttribute = propertySymbol
-						.GetAttributes()
-						.Any(attr => attr.AttributeClass?.ToDisplayString() == "UserQueries.UserQueryableAttribute");
-
-					if (!hasRequiredAttribute)
-					{
-						var diag = Diagnostic.Create(
-							PrimaryUserQueryablePropertyQueryableRule,
-							attribute.GetLocation(),
-							propertyName);
-						context.ReportDiagnostic(diag);
-					}
+					EvaluateUserQueryableAttribute(context, semanticModel, classDecl, attribute);
 				}
 			}
+		}
+
+		private static void AnalyzeProperty(SyntaxNodeAnalysisContext context)
+		{
+			var propertyDecl = (PropertyDeclarationSyntax)context.Node;
+			var semanticModel = context.SemanticModel;
+
+			foreach (var attributeList in propertyDecl.AttributeLists)
+			{
+				foreach (var attribute in attributeList.Attributes)
+				{
+					EvaluateEmbeddedUserQueryableAttribute(context, semanticModel, propertyDecl, attribute);
+				}
+			}
+		}
+
+		private static void EvaluateUserQueryableAttribute(SyntaxNodeAnalysisContext context, SemanticModel semanticModel, ClassDeclarationSyntax classDecl, AttributeSyntax attribute)
+		{
+			var typeInfo = semanticModel.GetTypeInfo(attribute);
+			var attributeType = typeInfo.Type;
+
+			if (attributeType == null || attributeType.ToDisplayString() != "UserQueries.PrimaryUserQueryableAttribute")
+				return;
+
+			var propertyName = GetAttributeStringArgument(attribute, semanticModel, "propertyName", 0);
+			if (propertyName == null)
+				return;
+
+			var classSymbol = semanticModel.GetDeclaredSymbol(classDecl);
+			var propertySymbol = classSymbol
+				.GetMembers()
+				.OfType<IPropertySymbol>()
+				.FirstOrDefault(p => p.Name == propertyName);
+
+			if (propertySymbol == null)
+			{
+				var diag = Diagnostic.Create(
+					PrimaryUserQueryablePropertyExistRule,
+					attribute.GetLocation(),
+					propertyName,
+					classSymbol.Name);
+				context.ReportDiagnostic(diag);
+				return;
+			}
+
+			var hasRequiredAttribute = propertySymbol
+				.GetAttributes()
+				.Any(attr => attr.AttributeClass != null && attr.AttributeClass.ToDisplayString() == "UserQueries.UserQueryableAttribute");
+
+			if (!hasRequiredAttribute)
+			{
+				var diag = Diagnostic.Create(
+					PrimaryUserQueryablePropertyQueryableRule,
+					attribute.GetLocation(),
+					propertyName);
+				context.ReportDiagnostic(diag);
+			}
+		}
+
+		private static void EvaluateEmbeddedUserQueryableAttribute(SyntaxNodeAnalysisContext context, SemanticModel semanticModel, PropertyDeclarationSyntax propertyDecl, AttributeSyntax attribute)
+		{
+			var typeInfo = semanticModel.GetTypeInfo(attribute);
+			var attributeType = typeInfo.Type;
+
+			if (attributeType == null || attributeType.ToDisplayString() != "UserQueries.EmbeddedUserQueryableAttribute")
+				return;
+
+			var embeddedPropertyName = GetAttributeStringArgument(attribute, semanticModel, "embeddedPropertyName", 1);
+			if (embeddedPropertyName == null)
+				return;
+
+			var propertySymbol = semanticModel.GetDeclaredSymbol(propertyDecl) as IPropertySymbol;
+			if (propertySymbol == null)
+				return;
+
+			var embeddedPropertySymbol = propertySymbol.Type
+				.GetMembers()
+				.OfType<IPropertySymbol>()
+				.FirstOrDefault(p => p.Name == embeddedPropertyName);
+
+			if (embeddedPropertySymbol == null)
+			{
+				var diag = Diagnostic.Create(
+					EmbeddedPropertyExistRule,
+					attribute.GetLocation(),
+					embeddedPropertyName,
+					propertySymbol.Type.ToDisplayString());
+				context.ReportDiagnostic(diag);
+			}
+		}
+
+		private static string GetAttributeStringArgument(AttributeSyntax attribute, SemanticModel semanticModel, string parameterName, int fallbackPosition)
+		{
+			if (attribute.ArgumentList == null)
+				return null;
+
+			foreach (var argument in attribute.ArgumentList.Arguments)
+			{
+				var name = argument.NameEquals != null
+					? argument.NameEquals.Name.Identifier.ValueText
+					: argument.NameColon != null
+						? argument.NameColon.Name.Identifier.ValueText
+						: null;
+
+				if (string.Equals(name, parameterName, StringComparison.OrdinalIgnoreCase))
+					return GetStringValue(argument.Expression, semanticModel);
+			}
+
+			var methodSymbol = semanticModel.GetSymbolInfo(attribute).Symbol as IMethodSymbol;
+			if (methodSymbol != null)
+			{
+				for (int i = 0; i < attribute.ArgumentList.Arguments.Count && i < methodSymbol.Parameters.Length; i++)
+				{
+					if (string.Equals(methodSymbol.Parameters[i].Name, parameterName, StringComparison.OrdinalIgnoreCase))
+						return GetStringValue(attribute.ArgumentList.Arguments[i].Expression, semanticModel);
+				}
+			}
+
+			if (fallbackPosition >= 0 && fallbackPosition < attribute.ArgumentList.Arguments.Count)
+				return GetStringValue(attribute.ArgumentList.Arguments[fallbackPosition].Expression, semanticModel);
+
+			return null;
+		}
+
+		private static string GetStringValue(ExpressionSyntax expression, SemanticModel semanticModel)
+		{
+			var constant = semanticModel.GetConstantValue(expression);
+			return constant.HasValue && constant.Value is string
+				? (string)constant.Value
+				: null;
 		}
 
 		public static bool IsValidQueryablePropertyName(string propertyName)
@@ -165,6 +279,10 @@ namespace UserQueries.Analyzers
 				if (!char.IsLetterOrDigit(c) && c != '_')
 					return false;
 			}
+
+			if (new[] { "default", "orderby", "orderbydescending" }.Contains(propertyName, StringComparer.OrdinalIgnoreCase))
+				return false;
+
 			return true;
 		}
 	}

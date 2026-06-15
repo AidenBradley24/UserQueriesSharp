@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System.Collections.Frozen;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 
 namespace UserQueries;
@@ -44,36 +46,83 @@ public static class UserQueryExtensions
 	}
 
 	/// <summary>
-	/// Returns the queryable property names of a record in a set order.
+	/// Returns an ordered array of queryable properties for <paramref name="modelType"/>, including their associated query names.
 	/// </summary>
-	public static string[] GetQueryableProperties(Type modelType)
+	/// <exception cref="UserQueryableMisconfigurationException"></exception>
+	public static IReadOnlyList<UserQueryProperty> GetQueryableProperties(Type modelType, out ParameterExpression modelExpression)
 	{
-		return [.. modelType.GetCustomAttributes<UserQueryableAttribute>().OrderBy(a => a.Order).Select(a => a.QueryName)];
+		var modelExpressionLocal = Expression.Parameter(modelType, "x");
+		modelExpression = modelExpressionLocal;
+
+		var userQueryableAttrs = modelType
+			.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+			.SelectMany(p => p.GetCustomAttributes<UserQueryableAttribute>(), (p, a) =>
+			{
+				var exp = Expression.Property(modelExpressionLocal, p);
+				return (a.QueryName, a.Order, Property: p, Expression: exp);
+			});
+
+		var embeddedQueryableAttrs = modelType
+			.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+			.SelectMany(p => p.GetCustomAttributes<EmbeddedUserQueryableAttribute>(), (p, a) => (p, a))
+			.Select(tuple => 
+			{
+				var (p, a) = tuple;
+				var embeddedProperty = p.PropertyType.GetProperty(a.EmbeddedPropertyName)
+					?? throw new UserQueryableMisconfigurationException($"Embedded property '{a.EmbeddedPropertyName}' not found on type '{p.PropertyType.Name}'.");
+				var exp = Expression.Property(Expression.Property(modelExpressionLocal, p), embeddedProperty);
+				return (a.QueryName, a.Order, Property: embeddedProperty, Expression: exp);
+			});
+
+		var list = userQueryableAttrs
+			.Concat(embeddedQueryableAttrs)
+			.OrderBy(a => a.Order)
+			.Select(a => new UserQueryProperty(a.QueryName, a.Property, a.Expression))
+			.ToList();
+
+		// Ensure all query names are valid and unique
+		var queryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var item in list) 
+		{
+			var name = item.QueryName;
+			var prop = item.Property;
+
+			if (GetReservedWords().Contains(name, StringComparer.OrdinalIgnoreCase))
+				throw new UserQueryableMisconfigurationException($"Query name '{name}' on type '{modelType.Name}' is a reserved word and cannot be used.");
+			if (!IsValidQueryablePropertyName(name))
+				throw new UserQueryableMisconfigurationException($"Invalid query name '{name}' on type '{modelType.Name}'. Query names must start with a letter and can only contain letters, digits, or underscores.");
+			if (!queryNames.Add(name))
+				throw new UserQueryableMisconfigurationException($"Duplicate query name '{name}' on type '{modelType.Name}'. Query names must be unique.");
+			if (!prop.CanRead)
+				throw new UserQueryableMisconfigurationException($"Queryable property '{name}' on type '{modelType.Name}' must be readable.");
+		}
+
+		if (modelType.GetCustomAttributes<PrimaryUserQueryableAttribute>().FirstOrDefault() is PrimaryUserQueryableAttribute primaryAttr)
+		{
+			var prop = modelType.GetProperty(primaryAttr.PropertyName, BindingFlags.Instance | BindingFlags.Public)
+				?? throw new UserQueryableMisconfigurationException($"PrimaryUserQueryable property '{primaryAttr.PropertyName}' not found on type '{modelType.Name}'.");
+			if (!list.Any(item => item.Property == prop))
+				throw new UserQueryableMisconfigurationException($"PrimaryUserQueryable property '{primaryAttr.PropertyName}' on type '{modelType.Name}' is not a valid queryable property.");
+
+			list.Add(new UserQueryProperty("default", prop, Expression.Property(modelExpressionLocal, prop)));
+		}
+
+		return list;
 	}
 
 	/// <summary>
-	/// Returns the values of a record in the same order as <see cref="GetQueryableProperties(Type)"/>
+	/// Returns an ordered array of queryable properties for the type of <typeparamref name="T"/>, including their associated query names.
 	/// </summary>
-	public static string[] GetQueryablePropertiesRecord<TModel>(TModel record)
-	{
-		if (record == null) throw new ArgumentNullException(nameof(record));
-		var type = typeof(TModel);
-		var props = type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
-		var queryableAttrs = type.GetCustomAttributes<UserQueryableAttribute>().OrderBy(a => a.Order).ToArray();
-		if (queryableAttrs.Length == 0)
-			return [];
-
-		var result = new string[queryableAttrs.Length];
-		for (int i = 0; i < queryableAttrs.Length; i++)
-		{
-			var attr = queryableAttrs[i];
-			var prop = props.FirstOrDefault(p => p.GetCustomAttribute<UserQueryableAttribute>()?.QueryName == attr.QueryName)
-				?? throw new UserQueryableMisconfigurationException($"Property with QueryName '{attr.QueryName}' not found on type '{type.Name}'.");
-			var value = prop.GetValue(record);
-			result[i] = value?.ToString() ?? "";
-		}
-		return result;
+	/// <exception cref="UserQueryableMisconfigurationException"></exception>
+	public static IReadOnlyList<UserQueryProperty> GetQueryableProperties<T>(this IEnumerable<T> collection, out ParameterExpression modelExpression) 
+	{ 
+		return GetQueryableProperties(typeof(T), out modelExpression);
 	}
+
+	/// <summary>
+	/// Words that are reserved for query syntax and cannot be used as queryable property names.
+	/// </summary>
+	public static string[] GetReservedWords() => ["default", "orderby", "orderbydescending"];
 
 	/// <summary>
 	/// Returns true if <paramref name="propertyName"/> is a valid user queryable name.
@@ -87,6 +136,8 @@ public static class UserQueryExtensions
 			if (!char.IsLetterOrDigit(c) && c != '_')
 				return false;
 		}
+		if (GetReservedWords().Contains(propertyName, StringComparer.OrdinalIgnoreCase))
+			return false;
 		return true;
 	}
 }
