@@ -19,5 +19,14 @@
 
 		[UserQueryable("timespanvalue")]
 		public TimeSpan TimeSpanValue { get; set; } = TimeSpan.FromSeconds(1);
+
+		[EmbeddedUserQueryable("embedded", nameof(EmbededModel.EmbeddedValue))]
+		public EmbededModel? Embedded { get; set; } = new EmbededModel();
+	}
+
+	internal class EmbededModel
+	{ 
+		public string EmbeddedValue { get; set; } = "";
+		public float FloatValue { get; set; } = 0.0f;
 	}
 }
