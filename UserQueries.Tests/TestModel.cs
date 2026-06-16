@@ -27,5 +27,6 @@
 	internal class EmbededModel
 	{ 
 		public string EmbeddedValue { get; set; } = "";
+		public float FloatValue { get; set; } = 0.0f;
 	}
 }

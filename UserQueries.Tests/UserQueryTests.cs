@@ -215,6 +215,9 @@
 		[InlineData("embedded: 'Embedded1'", new[] { "Item4" })]
 		[InlineData("embedded: 'Embedded2'", new[] { "Item5" })]
 		[InlineData("embedded: 'Embedded'", new[] { "Item4", "Item5" })]
+		[InlineData("embedded = 'Embedded1'", new[] { "Item4" })]
+		[InlineData("embedded ^ 'Embedded'", new[] { "Item4", "Item5" })]
+		[InlineData("embedded * '1'", new[] { "Item4" })]
 		[InlineData("embedded !* 'Embedded'", new[] { "Item1", "Item2", "Item3" })]
 		public void EmbeddedProperty_Queries(string query, string[] expectedNames)
 		{
@@ -222,6 +225,138 @@
 			var result = provider.EvaluateUserQuery(query);
 			var actualNames = result.Select(i => i.Name).ToArray();
 			Assert.Equal(expectedNames.OrderBy(n => n), actualNames.OrderBy(n => n));
+		}
+
+		[Fact]
+		public void BuildEmbeddedPropertyAccess_MultipleLayers_StringPath_ReturnsTerminalPropertyAndValue()
+		{
+			var (property, accessor) = BuildEmbeddedAccessor<DeepEmbeddedRoot, string>(
+				nameof(DeepEmbeddedRoot.Level1),
+				nameof(DeepLevel1.Level2),
+				nameof(DeepLevel2.StringLeaf),
+				nameof(DeepStringLeaf.Text));
+
+			var model = new DeepEmbeddedRoot
+			{
+				Level1 = new DeepLevel1
+				{
+					Level2 = new DeepLevel2
+					{
+						StringLeaf = new DeepStringLeaf
+						{
+							Text = "NestedValue"
+						}
+					}
+				}
+			};
+
+			Assert.Equal(nameof(DeepStringLeaf.Text), property.Name);
+			Assert.Equal("NestedValue", accessor(model));
+		}
+
+		[Fact]
+		public void BuildEmbeddedPropertyAccess_MultipleLayers_StringPath_ReturnsEmptyStringWhenAnyNavigationIsNull()
+		{
+			var (_, accessor) = BuildEmbeddedAccessor<DeepEmbeddedRoot, string>(
+				nameof(DeepEmbeddedRoot.Level1),
+				nameof(DeepLevel1.Level2),
+				nameof(DeepLevel2.StringLeaf),
+				nameof(DeepStringLeaf.Text));
+
+			var results = new[]
+			{
+				accessor(new DeepEmbeddedRoot { Level1 = null }),
+				accessor(new DeepEmbeddedRoot { Level1 = new DeepLevel1 { Level2 = null } }),
+				accessor(new DeepEmbeddedRoot { Level1 = new DeepLevel1 { Level2 = new DeepLevel2 { StringLeaf = null } } }),
+				accessor(new DeepEmbeddedRoot { Level1 = new DeepLevel1 { Level2 = new DeepLevel2 { StringLeaf = new DeepStringLeaf { Text = null } } } }),
+			};
+
+			Assert.Equal(["", "", "", ""], results);
+		}
+
+		[Fact]
+		public void BuildEmbeddedPropertyAccess_MultipleLayers_ValueTypePath_ReturnsDefaultWhenAnyNavigationIsNull()
+		{
+			var (property, accessor) = BuildEmbeddedAccessor<DeepEmbeddedRoot, int>(
+				nameof(DeepEmbeddedRoot.Level1),
+				nameof(DeepLevel1.Level2),
+				nameof(DeepLevel2.NumberLeaf),
+				nameof(DeepNumberLeaf.Number));
+
+			var results = new[]
+			{
+				accessor(new DeepEmbeddedRoot
+				{
+					Level1 = new DeepLevel1
+					{
+						Level2 = new DeepLevel2
+						{
+							NumberLeaf = new DeepNumberLeaf
+							{
+								Number = 42
+							}
+						}
+					}
+				}),
+				accessor(new DeepEmbeddedRoot { Level1 = null }),
+				accessor(new DeepEmbeddedRoot { Level1 = new DeepLevel1 { Level2 = null } }),
+				accessor(new DeepEmbeddedRoot { Level1 = new DeepLevel1 { Level2 = new DeepLevel2 { NumberLeaf = null } } }),
+			};
+
+			Assert.Equal(nameof(DeepNumberLeaf.Number), property.Name);
+			Assert.Equal([42, 0, 0, 0], results);
+		}
+
+		private static (System.Reflection.PropertyInfo Property, Func<TModel, TValue> Accessor) BuildEmbeddedAccessor<TModel, TValue>(
+			string rootPropertyName,
+			params string[] parts)
+		{
+			var modelExpression = System.Linq.Expressions.Expression.Parameter(typeof(TModel), "x");
+			var rootProperty = typeof(TModel).GetProperty(
+				rootPropertyName,
+				System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)!;
+
+			var method = typeof(UserQueryExtensions).GetMethod(
+				"BuildEmbeddedPropertyAccess",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+			var result = ((System.Reflection.PropertyInfo Property, System.Linq.Expressions.Expression Expression))method.Invoke(
+				null,
+				new object?[] { modelExpression, rootProperty, parts })!;
+
+			var body = result.Expression.Type == typeof(TValue)
+				? result.Expression
+				: System.Linq.Expressions.Expression.Convert(result.Expression, typeof(TValue));
+
+			var accessor = System.Linq.Expressions.Expression.Lambda<Func<TModel, TValue>>(body, modelExpression).Compile();
+			return (result.Property, accessor);
+		}
+
+		private sealed class DeepEmbeddedRoot
+		{
+			public DeepLevel1? Level1 { get; init; }
+		}
+
+		private sealed class DeepLevel1
+		{
+			public DeepLevel2? Level2 { get; init; }
+		}
+
+		private sealed class DeepLevel2
+		{
+			public DeepStringLeaf? StringLeaf { get; init; }
+
+			public DeepNumberLeaf? NumberLeaf { get; init; }
+		}
+
+		private sealed class DeepStringLeaf
+		{
+			public string? Text { get; init; }
+		}
+
+		private sealed class DeepNumberLeaf
+		{
+			public int Number { get; init; }
 		}
 	}
 }

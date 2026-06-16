@@ -1,12 +1,14 @@
 ﻿namespace UserQueries;
 
 /// <summary>
-/// Specifies that a property has a specified nested property that can be queried.
+/// Specifies that a navigation property has one embedded property that should be included for use in user queries. <br/>
+/// Stack multiple on one navigation property to define multiple from the same class. <br/>
+/// Supports multiple navigation properties deep with the <paramref name="path"/>.
 /// </summary>
 /// <param name="queryName">The name used in the query.</param>
-/// <param name="embeddedPropertyName">The property that should be queried.</param>
-[AttributeUsage(AttributeTargets.Property)]
-public sealed class EmbeddedUserQueryableAttribute(string queryName, string embeddedPropertyName) : Attribute
+/// <param name="path">The path to the nested property that should be queried starting from the class of the navigation property.</param>
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+public sealed class EmbeddedUserQueryableAttribute(string queryName, string path) : Attribute
 {
 	/// <summary>
 	/// Defines the name used in the query
@@ -14,9 +16,9 @@ public sealed class EmbeddedUserQueryableAttribute(string queryName, string embe
 	public string QueryName { get; } = queryName;
 
 	/// <summary>
-	/// Defines the property that should be queried. This allows for nested properties to be queried directly from the parent object.
+	/// The path to the nested property that should be queried starting from the class of the navigation property.
 	/// </summary>
-	public string EmbeddedPropertyName { get; } = embeddedPropertyName;
+	public string Path { get; } = path;
 
 	/// <summary>
 	/// Specifies the order of precedence when mutiple properties are involved

@@ -58,7 +58,7 @@ public static class UserQueryExtensions
 			.GetProperties(BindingFlags.Instance | BindingFlags.Public)
 			.SelectMany(p => p.GetCustomAttributes<UserQueryableAttribute>(), (p, a) =>
 			{
-				var exp = Expression.Property(modelExpressionLocal, p);
+				Expression exp = Expression.Property(modelExpressionLocal, p);
 				return (a.QueryName, a.Order, Property: p, Expression: exp);
 			});
 
@@ -67,11 +67,19 @@ public static class UserQueryExtensions
 			.SelectMany(p => p.GetCustomAttributes<EmbeddedUserQueryableAttribute>(), (p, a) => (p, a))
 			.Select(tuple => 
 			{
-				var (p, a) = tuple;
-				var embeddedProperty = p.PropertyType.GetProperty(a.EmbeddedPropertyName)
-					?? throw new UserQueryableMisconfigurationException($"Embedded property '{a.EmbeddedPropertyName}' not found on type '{p.PropertyType.Name}'.");
-				var exp = Expression.Property(Expression.Property(modelExpressionLocal, p), embeddedProperty);
-				return (a.QueryName, a.Order, Property: embeddedProperty, Expression: exp);
+				var (rootProperty, attr) = tuple;
+
+				var parts = attr.Path
+					.Split('.')
+					.Select(part => part.Trim())
+					.ToArray();
+
+				if (parts.Length == 0 || parts.Any(string.IsNullOrWhiteSpace))
+					throw new UserQueryableMisconfigurationException(
+						$"Embedded path '{attr.Path}' on property '{rootProperty.Name}' is invalid.");
+
+				var (property, exp) = BuildEmbeddedPropertyAccess(modelExpressionLocal, rootProperty, parts);
+				return (attr.QueryName, attr.Order, Property: property, Expression: exp);
 			});
 
 		var list = userQueryableAttrs
@@ -108,6 +116,89 @@ public static class UserQueryExtensions
 		}
 
 		return list;
+	}
+
+	private static (PropertyInfo Property, Expression Expression) BuildEmbeddedPropertyAccess(
+		ParameterExpression modelExpression,
+		PropertyInfo rootProperty,
+		string[] parts)
+	{
+		PropertyInfo currentProperty = rootProperty;
+		Expression currentExpression = Expression.Property(modelExpression, rootProperty);
+		Expression? nullGuard = null;
+
+		if (parts.Length > 0 && CanBeNull(currentExpression.Type))
+		{
+			nullGuard = IsNull(currentExpression);
+		}
+
+		for (int i = 0; i < parts.Length; i++)
+		{
+			var sourceType = GetMemberSourceType(currentProperty.PropertyType);
+			var sourceExpression = UnwrapNullable(currentExpression);
+
+			var nextProperty = sourceType.GetProperty(parts[i], BindingFlags.Instance | BindingFlags.Public)
+				?? throw new UserQueryableMisconfigurationException(
+					$"Embedded property '{parts[i]}' not found on type '{sourceType.Name}'.");
+
+			currentExpression = Expression.Property(sourceExpression, nextProperty);
+			currentProperty = nextProperty;
+
+			if (i < parts.Length - 1 && CanBeNull(currentExpression.Type))
+			{
+				nullGuard = nullGuard == null
+					? IsNull(currentExpression)
+					: Expression.OrElse(nullGuard, IsNull(currentExpression));
+			}
+		}
+
+		if (currentProperty.PropertyType == typeof(string))
+		{
+			currentExpression = Expression.Coalesce(
+				currentExpression,
+				Expression.Constant(string.Empty, typeof(string)));
+		}
+
+		if (nullGuard != null)
+		{
+			currentExpression = Expression.Condition(
+				nullGuard,
+				GetFallbackExpression(currentProperty.PropertyType),
+				currentExpression);
+		}
+
+		return (currentProperty, currentExpression);
+	}
+
+	private static bool CanBeNull(Type type)
+	{
+		return !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
+	}
+
+	private static Expression IsNull(Expression expression)
+	{
+		return Expression.Equal(expression, Expression.Constant(null, expression.Type));
+	}
+
+	private static Type GetMemberSourceType(Type type)
+	{
+		return Nullable.GetUnderlyingType(type) ?? type;
+	}
+
+	private static Expression UnwrapNullable(Expression expression)
+	{
+		var underlyingType = Nullable.GetUnderlyingType(expression.Type);
+		return underlyingType == null
+			? expression
+			: Expression.Property(expression, nameof(Nullable<int>.Value));
+	}
+
+	private static Expression GetFallbackExpression(Type type)
+	{
+		if (type == typeof(string))
+			return Expression.Constant(string.Empty, typeof(string));
+
+		return Expression.Default(type);
 	}
 
 	/// <summary>
