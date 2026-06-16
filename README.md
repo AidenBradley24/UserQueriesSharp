@@ -37,33 +37,51 @@ class ExampleModel
 
 	[UserQueryable("timespanval")]
 	public TimeSpan TimeSpanValue { get; set; } = TimeSpan.FromSeconds(1);
+
+	[EmbeddedUserQueryable("embed1", nameof(NavigationProperty.Embed1Property))]
+	[EmbeddedUserQueryable("embed2", nameof(NavigationProperty.Embed2Property))]
+	[EmbeddedUserQueryable("doubleembed", "EmbeddedNavigationProperty.EmbeddedProperty")]
+	public NavigationPropertyType NavigationProperty { get; set; } = new NavigationPropertyType();
 }
 ```
 
 `
 Jim
 `
+
 -> returns any entity with the text "Jim" consecutively inside the name property. (case insensitive)
 
 `
 name * "Jim"
 `
+
 -> returns any entity with the text "Jim" consecutively inside the name property. (case insensitive)
 
 `
 intval < 10 & name = 'fred'
 `
+
 -> returns any entity with an intvalue less than 10 AND its "name" property is exactly "fred" (case insensitive)
 
 `
 timespanval < '01:00:00' orderby timespanval
 `
+
 -> returns any entity with a timespanvalue less than an hour, ordered ascending by its timespanvalue.
 
 `
 floatval: -100 - 100
 `
+
 -> returns any entity with floatvalue between -100 and 100 inclusive
+
+`
+embed1 = 'example'
+`
+
+-> returns any entity with the text "example" consecutively inside the "Embed1Property" property of the "NavigationProperty" navigation property. (case insensitive)
+
+-> if the navigation property is null, it would not be returned, because the embedded property's value is considered to be an empty string (or default(T) for other types)
 
 ---
 

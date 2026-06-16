@@ -213,10 +213,7 @@ namespace UserQueries.Analyzers
 			if (propertySymbol == null)
 				return;
 
-			var embeddedPropertySymbol = propertySymbol.Type
-				.GetMembers()
-				.OfType<IPropertySymbol>()
-				.FirstOrDefault(p => p.Name == embeddedPropertyName);
+			var embeddedPropertySymbol = FindEmbeddedPropertySymbol(propertySymbol.Type, embeddedPropertyName);
 
 			if (embeddedPropertySymbol == null)
 			{
@@ -227,6 +224,37 @@ namespace UserQueries.Analyzers
 					propertySymbol.Type.ToDisplayString());
 				context.ReportDiagnostic(diag);
 			}
+		}
+
+		private static IPropertySymbol FindEmbeddedPropertySymbol(ITypeSymbol typeSymbol, string propertyName)
+		{
+			var namedTypeSymbol = typeSymbol as INamedTypeSymbol;
+			if (namedTypeSymbol == null || string.IsNullOrEmpty(propertyName))
+				return null;
+
+			for (var currentType = namedTypeSymbol; currentType != null; currentType = currentType.BaseType)
+			{
+				var propertySymbol = currentType
+					.GetMembers(propertyName)
+					.OfType<IPropertySymbol>()
+					.FirstOrDefault();
+
+				if (propertySymbol != null)
+					return propertySymbol;
+			}
+
+			foreach (var interfaceType in namedTypeSymbol.AllInterfaces)
+			{
+				var propertySymbol = interfaceType
+					.GetMembers(propertyName)
+					.OfType<IPropertySymbol>()
+					.FirstOrDefault();
+
+				if (propertySymbol != null)
+					return propertySymbol;
+			}
+
+			return null;
 		}
 
 		private static string GetAttributeStringArgument(AttributeSyntax attribute, SemanticModel semanticModel, string parameterName, int fallbackPosition)
